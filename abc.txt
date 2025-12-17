@@ -1,0 +1,21 @@
+bad code
+function x(y) {
+  z = y + 1
+  console.log(user.name.first)
+}
+
+x()
+
+
+normal
+function fetchUser(id) {
+  fetch("https://api.example.com/users/" + id)
+    .then(function (res) {
+      return res.json()
+    })
+    .then(function (data) {
+      console.log(data)
+    })
+}
+
+fetchUser(1)

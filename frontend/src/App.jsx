@@ -6,8 +6,18 @@ import Select from 'react-select';
 //import { GoogleGenAI } from "@google/genai"; 
 import Groq from 'groq-sdk'; 
 import Markdown from 'react-markdown' 
+import { useContext} from "react";
+import { AuthContext } from "./context/AuthContext";
+import History from './components/History';
 import RingLoader from "react-spinners/RingLoader"; 
 const App = () => { 
+    const [page, setPage] = useState("editor"); // "editor" | "history"
+const [loadedCode, setLoadedCode] = useState("");
+const [loadedReview, setLoadedReview] = useState("");
+
+    const { token } = useContext(AuthContext);
+const [freeCount, setFreeCount] = useState(0);
+
     const options = [ 
         { value: 'javascript', label: 'JavaScript' }, 
         { value: 'python', label: 'Python' }, 
@@ -32,6 +42,7 @@ const App = () => {
     ]; 
     
     const [selectedOption, setSelectedOption] = useState(options[0]);
+    const [loadedLanguage, setLoadedLanguage] = useState(options[0]);
 
     const customStyles = { 
         control: (provided) => ({ 
@@ -73,6 +84,14 @@ const App = () => {
         }); 
         const [loading, setLoading] = useState(false); 
         const [response, setResponse] = useState(""); 
+        const openNewEditor = () => {
+  setLoadedCode("");
+  setLoadedReview("");
+  setSelectedOption(options[0]);
+  setLoadedLanguage(options[0]);
+  setPage("editor");
+};
+
         // async function reviewCode() { 
         // // setResponse("") 
         // // setLoading(true); 
@@ -112,7 +131,23 @@ const App = () => {
                                 } 
                             ] 
                         }); 
+
                         setResponse(chatCompletion.choices[0].message.content);
+                        if (token) {
+  await fetch("http://localhost:5000/api/review", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      language: selectedOption.value,
+      code,
+      review: chatCompletion.choices[0].message.content
+    })
+  });
+}
+
         }
                      catch (err) 
                      { 
@@ -124,23 +159,56 @@ const App = () => {
                         setLoading(false); 
                     } 
                 } 
-                return ( 
-                <> 
-                <Navbar /> 
-                <div className="main flex justify-between" style={{ height: "calc(100vh - 90px" }}> 
-                    <div className="left h-[87.5%] w-[50%]"> 
+    
+                return (
+                    <>
+                     <Navbar onHistory={() => setPage("history")} />
+                    {page==="editor" && (
+
+                        //<Navbar onHistory={() => setPage("history")} /> 
+                    <div className="main flex justify-between" style={{ height: "calc(100vh - 90px" }}> 
+                        <div className="left h-[87.5%] w-[50%]"> 
                         <div className="tabs !mt-5 !px-5 !mb-3 w-full flex items-center gap-[10px]"> 
                             <Select value={selectedOption} onChange={(e) => { setSelectedOption(e) }} options={options} styles={customStyles} /> {/* <button className="btnNormal bg-zinc-900 min-w-[120px] transition-all hover:bg-zinc-800">Fix Code</button> */} 
-                                <button onClick={() => { if (code === "") { alert("Please enter code first") } else { reviewCode() } }} className="btnNormal bg-zinc-900 min-w-[120px] transition-all hover:bg-zinc-800">Review</button> 
+                                <button onClick={() => { if (code === "") { alert("Please enter code first") } if (!token && freeCount >=2) { alert("Login to continue using CodeAudit");
+                                return;
+                                    
+                                } 
+                                if(!token) setFreeCount(prev => prev + 1); 
+                                else { reviewCode() } }} className="btnNormal bg-zinc-900 min-w-[120px] transition-all hover:bg-zinc-800">Review</button> 
                                 </div> 
-                                <Editor height="100%" theme='vs-dark' language={selectedOption.value} value={code} onChange={(e) => { setCode(e) }} /> 
+                                <Editor height="100%" theme='vs-dark' language={selectedOption.value} value={loadedCode || code} onChange={(e) => { 
+                                    setLoadedCode("");
+                                    setCode(e) 
+                                    }} 
+                                    /> 
                                     </div> 
                                 <div className="right overflow-scroll !p-[10px] bg-zinc-900 w-[50%] h-[101%]"> <div className="topTab border-b-[1px] border-t-[1px] border-[#27272a] flex items-center justif-between h-[60px]"> 
                                     <p className='font-[700] text-[17px]'>Response</p> 
-                                    </div> {loading && <RingLoader color='#9333ea'/>} <Markdown>{response}</Markdown> 
+                                    </div> {loading && <RingLoader color='#9333ea'/>} <Markdown>{loadedReview ||response}</Markdown> 
                                     </div> 
                                     </div> 
-                                    </> 
                                     ) 
 } 
+{page === "history" && (
+  <History
+    openEditor={(item) => {
+      setLoadedCode(item.code);
+      setLoadedReview(item.review);
+      setLoadedLanguage(
+        options.find(o => o.value === item.language)
+      );
+      setSelectedOption(
+        options.find(o => o.value === item.language)
+      );
+      setPage("editor");
+    }}
+    openNewEditor={openNewEditor}
+  />
+)} 
+</> 
+); 
+}
+
+           
 export default App
